@@ -6,8 +6,13 @@
 #include <memory>
 
 
+float firstParticleMomentaZ(edm4hep::MCParticleCollection& inParticles) {
+  return inParticles[0].getMomentum().z;
+}
+
+
 int main(int argc, char *argv[]) {
-  auto fileName = "/home/jsmiesko/FCC/e4hsource/edm4hep_events.root";
+  auto fileName = "/home/jsmiesko/FCC/e4hsource/input/edm4hep_events.root";
 
   auto nPart = [](edm4hep::MCParticleCollection& inParts) { std::cout << inParts.size() << "\n"; return inParts.size(); };
 
@@ -17,8 +22,8 @@ int main(int argc, char *argv[]) {
 
   std::cout << "Info: Num. of slots: " <<  rdf.GetNSlots() << std::endl;
 
-  auto rdf2 = rdf.Define("nPart", nPart, {"MCParticles"});
-  auto hist = rdf2.Histo1D("nPart");
+  auto rdf2 = rdf.Define("mZ", firstParticleMomentaZ, {"MCParticles"});
+  auto hist = rdf2.Histo1D("mZ");
 
   hist->Print();
 

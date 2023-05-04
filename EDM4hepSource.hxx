@@ -59,12 +59,9 @@ class EDM4hepSource final : public ROOT::RDF::RDataSource {
     std::vector<std::pair<ULong64_t, ULong64_t>> m_rangesAll;
     /// Column names
     std::vector<std::string> m_columnNames;
-    /// Column addresses, m_columnAddresses[columnIndex][slotIndex]
-    std::vector<std::vector<void *>> m_columnAddresses;
     /// MCParticleAddresses, m_mcParticleAddresses[columnIndex][slotIndex]
     std::vector<std::vector<const edm4hep::MCParticleCollection*>> m_mcParticleAddresses;
     /// MCParticles, m_mcParticles[entryIndex]
-    /// std::map<ULong64_t, const edm4hep::MCParticleCollection&> m_mcParticles;
     std::map<ULong64_t, const podio::CollectionBase*> m_mcParticles;
 
     /// Root podio reader
@@ -112,8 +109,6 @@ EDM4hepSource::SetNSlots(unsigned int nSlots) {
 
   const auto nColumns = 1;
   // Initialize the entire set of addresses
-  m_columnAddresses.resize(nColumns, std::vector<void*>(m_nSlots, nullptr));
-  //
   m_mcParticleAddresses.resize(nColumns, std::vector<const edm4hep::MCParticleCollection*>(m_nSlots, nullptr));
 }
 
@@ -127,10 +122,6 @@ EDM4hepSource::GetColumnReaders(std::string_view columnName) {
   std::cout << "EDM4hepSource: Getting column readers for column: " << columnName << std::endl;
 
   std::vector<T**> readers;
-
-  // for (size_t i = 0; i < m_pt.size(); ++i) {
-  //   readers.emplace_back(*m_pt.data());
-  // }
 
   return readers;
 }
@@ -202,47 +193,6 @@ void
 EDM4hepSource::InitSlot(unsigned int slot, ULong64_t firstEntry) {
   std::cout << "EDM4hepSource: Initializing slot: " << slot
             << " with first entry " << firstEntry << std::endl;
-
-  /*
-  ULong64_t rangeStart = 0;
-  ULong64_t rangeEnd = 0;
-  for (auto& range : m_rangesAll) {
-    if (range.first == firstEntry) {
-      rangeStart = range.first;
-      rangeEnd = range.second;
-      break;
-    }
-  }
-
-  std::cout << "N events: " << m_podioReader.getEntries("events") << "\n";
-
-  std::cout << "EDM4hepSource: Slot range: " << rangeStart << ", "
-            << rangeEnd << "\n";
-
-  // std::map<ULong64_t, std::reference_wrapper<const edm4hep::MCParticleCollection>> ccc;
-  for (ULong64_t entryIndex = rangeStart; entryIndex < rangeEnd; ++entryIndex) {
-    std::cout << "Reading entry: " << entryIndex << "\n";
-    // const auto event = podio::Frame(m_podioReader.readEntry("events", entryIndex));
-    const auto event = podio::Frame(m_podioReader.readNextEntry("events"));
-    // const edm4hep::MCParticleCollection& mcps = event.get<edm4hep::MCParticleCollection>("MCParticles");
-    // auto& mcps = event.get<edm4hep::MCParticleCollection>("MCParticles");
-    // m_mcParticles.insert(std::make_pair(entryIndex, mcps));
-    // m_mcParticles[entryIndex] = std::move(mcps);
-    // m_mcParticles.insert(std::make_pair(entryIndex, std::move(mcps)));
-    // const podio::CollectionBase* collection = event.get("MCParticles");
-    // m_mcParticles[entryIndex] = event.get("MCParticles");
-    // m_mcParticles.insert(std::make_pair(entryIndex, collection));
-    // m_mcParticles[entryIndex] = collection;
-    m_mcParticles[entryIndex] = event.get("MCParticles");
-    std::cout << "Address: " << m_mcParticles[entryIndex] << "\n";
-    std::cout << "Coll size: " << dynamic_cast<const edm4hep::MCParticleCollection*>(m_mcParticles[entryIndex])->size() << "\n";
-    // ccc.emplace_back(event.get<edm4hep::MCParticleCollection>("MCParticles"));
-    // m_mcParticles[entryIndex]->prepareAfterRead();
-    // ccc[entryIndex] = std::reference_wrapper(mcps);
-  }
-  // const auto event = podio::Frame(m_podioReader.readEntry
-  // m_mcParticleAddresses = m_podioReader
-  */
 }
 
 
@@ -252,28 +202,21 @@ EDM4hepSource::InitSlot(unsigned int slot, ULong64_t firstEntry) {
  */
 bool
 EDM4hepSource::SetEntry(unsigned int slot, ULong64_t entry) {
+  m_mutex.lock();
   std::cout << "EDM4hepSource: In slot: " << slot << ", setting entry: "
             << entry << std::endl;
-  m_mutex.lock();
 
-  // m_frames[slot] = podio::Frame();
-
-  // podio::Frame inFrame = podio::Frame(m_podioReader.readEntry("events", entry));
   m_frames[slot] = podio::Frame(m_podioReader.readEntry("events", entry));
-  // const podio::CollectionBase* coll = inFrame.get("MCParticles");
-  // m_frames[slot].put(std::unique_ptr<const podio::CollectionBase>(coll), "MCParticles");
-
   m_mcParticles[entry] = m_frames[slot].get("MCParticles");
-  m_mcParticleAddresses[0][slot] = dynamic_cast<const edm4hep::MCParticleCollection*>(m_mcParticles[entry]);
-  // m_mcParticleAddresses[0][slot] = dynamic_cast<const edm4hep::MCParticleCollection*>(m_mcParticles[entry]);
+
+  m_mcParticleAddresses[0][slot] =
+      dynamic_cast<const edm4hep::MCParticleCollection*>(m_mcParticles[entry]);
 
   std::cout << "Address: " << m_mcParticleAddresses[0][slot] << "\n";
   std::cout << "Coll size: " << m_mcParticleAddresses[0][slot]->size() << "\n";
   if (m_mcParticleAddresses[0][slot]->isValid()) {
     std::cout << "Collection valid\n";
   }
-
-  std::cout << "Returning true!\n";
   m_mutex.unlock();
 
   return true;
@@ -306,16 +249,16 @@ EDM4hepSource::Finalize() {
 Record_t
 EDM4hepSource::GetColumnReadersImpl(std::string_view name,
                                     const std::type_info& typeInfo) {
-  std::cout << "EDM4hepSource: Getting column reader implementation for column: "
-            << name << " with type: " << typeInfo.name() << std::endl;
+  std::cout << "EDM4hepSource: Getting column reader implementation for column:\n"
+            << "               " << name << "\n               with type: "
+            << typeInfo.name() << std::endl;
 
   Record_t columnReaders(m_nSlots);
   for (size_t slotIndex = 0; slotIndex < m_nSlots; ++slotIndex) {
-    std::cout << "Slot index: " << slotIndex << "\n";
-    std::cout << "Address:    "
-              << reinterpret_cast<const void*>(&m_mcParticleAddresses[0][slotIndex])
+    std::cout << "               Slot index: " << slotIndex << "\n";
+    std::cout << "               Address: "
+              << &m_mcParticleAddresses[0][slotIndex]
               << std::endl;
-    // auto &val = m_columnAddresses[0][slotIndex];
     columnReaders[slotIndex] = (void*) &m_mcParticleAddresses[0][slotIndex];
   }
 
