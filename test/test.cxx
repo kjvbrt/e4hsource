@@ -1,7 +1,7 @@
-#include "EDM4hepSource.hxx"
+#include "EDM4hepSource/EDM4hepSource.hxx"
 
 #include <ROOT/RDataFrame.hxx>
-#include "TCanvas.h"
+#include <TCanvas.h>
 
 #include <memory>
 
@@ -12,13 +12,13 @@ float firstParticleMomentaZ(edm4hep::MCParticleCollection& inParticles) {
 
 
 int main(int argc, char *argv[]) {
-  auto fileName = "/home/jsmiesko/FCC/e4hsource/input/edm4hep_events.root";
+  auto fileName = "/home/jsmiesko/Work/FCC/e4hsource/input/edm4hep_events.root";
 
   auto nPart = [](edm4hep::MCParticleCollection& inParts) { std::cout << inParts.size() << "\n"; return inParts.size(); };
 
   ROOT::EnableImplicitMT(2);
 
-  ROOT::RDataFrame rdf(std::make_unique<EDM4hepSource>(fileName));
+  ROOT::RDataFrame rdf(std::make_unique<e4hsource::EDM4hepSource>(fileName));
 
   std::cout << "Info: Num. of slots: " <<  rdf.GetNSlots() << std::endl;
 

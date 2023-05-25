@@ -1,0 +1,5 @@
+" Local settings
+" Requires 'silent! so .vimlocal' in main .vimrc file
+
+" ALE C++ Options
+let g:ale_cpp_cc_options = '`root-config --cflags` -Wall -I${KEY4HEP_PODIO}/include -I${KEY4HEP_EDM4HEP}/include'
