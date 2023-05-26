@@ -1,16 +1,21 @@
 #ifndef EDM4HEP_SOURCE_H__
 #define EDM4HEP_SOURCE_H__
 
+// STL
 #include <vector>
-// #include <iostream>
-// #include <functional>
-// #include <mutex>
+#include <string>
+#include <functional>
+#include <mutex>
 
+// ROOT
 #include <ROOT/RDataSource.hxx>
+
+// Podio
 #include <podio/Frame.h>
 #include <podio/ROOTFrameReader.h>
+#include <podio/CollectionBase.h>
 
-// #include <podio/CollectionBase.h>
+// EDM4hep
 #include <edm4hep/MCParticleCollection.h>
 
 
@@ -69,7 +74,7 @@ namespace e4hsource {
       /// Root podio reader
       podio::ROOTFrameReader m_podioReader;
 
-      /// Podio frame
+      /// Podio frames
       std::map<int, podio::Frame> m_frames;
 
       /// Mutex

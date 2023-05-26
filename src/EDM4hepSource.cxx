@@ -116,22 +116,22 @@ namespace e4hsource {
    */
   bool
   EDM4hepSource::SetEntry(unsigned int slot, ULong64_t entry) {
-    m_mutex.lock();
     std::cout << "EDM4hepSource: In slot: " << slot << ", setting entry: "
               << entry << std::endl;
 
+    m_mutex.lock();
     m_frames[slot] = podio::Frame(m_podioReader.readEntry("events", entry));
     m_mcParticles[entry] = m_frames[slot].get("MCParticles");
 
     m_mcParticleAddresses[0][slot] =
         dynamic_cast<const edm4hep::MCParticleCollection*>(m_mcParticles[entry]);
+    m_mutex.unlock();
 
     std::cout << "Address: " << m_mcParticleAddresses[0][slot] << "\n";
     std::cout << "Coll size: " << m_mcParticleAddresses[0][slot]->size() << "\n";
     if (m_mcParticleAddresses[0][slot]->isValid()) {
       std::cout << "Collection valid\n";
     }
-    m_mutex.unlock();
 
     return true;
   }
