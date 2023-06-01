@@ -6,24 +6,26 @@
 #include <memory>
 
 
-float firstParticleMomentaZ(edm4hep::MCParticleCollection& inParticles) {
-  return inParticles[0].getMomentum().z;
+float firstParticleMomentaX(edm4hep::MCParticleCollection& inParticles) {
+  return inParticles[0].getMomentum().x;
 }
 
 
 int main(int argc, char *argv[]) {
-  auto fileName = "/home/jsmiesko/Work/FCC/e4hsource/input/edm4hep_events.root";
+  // auto fileName = "/home/jsmiesko/Work/FCC/e4hsource/input/edm4hep_events.root";
+  auto fileName = "/home/jsmiesko/Work/FCC/e4hsource/input/testSiD_edm4hep.root";
 
-  auto nPart = [](edm4hep::MCParticleCollection& inParts) { std::cout << inParts.size() << "\n"; return inParts.size(); };
-
-  ROOT::EnableImplicitMT(2);
+  ROOT::EnableImplicitMT(1);
 
   ROOT::RDataFrame rdf(std::make_unique<e4hsource::EDM4hepSource>(fileName));
 
-  std::cout << "Info: Num. of slots: " <<  rdf.GetNSlots() << std::endl;
+  rdf.Describe().Print();
+  std::cout << std::endl;
 
-  auto rdf2 = rdf.Define("mZ", firstParticleMomentaZ, {"MCParticles"});
-  auto hist = rdf2.Histo1D("mZ");
+  std::cout << "Into: Num. of slots: " <<  rdf.GetNSlots() << std::endl;
+
+  auto rdf2 = rdf.Define("mX", firstParticleMomentaX, {"MCParticles"});
+  auto hist = rdf2.Histo1D("mX");
 
   hist->Print();
 

@@ -1,28 +1,78 @@
 #include "EDM4hepSource/EDM4hepSource.hxx"
 
+// STL
 #include <iostream>
+#include <filesystem>
+
+// ROOT
+#include <TFile.h>
 
 namespace e4hsource {
   /**
    * \brief Construct the EDM4hepSource from the provided file.
    */
-  EDM4hepSource::EDM4hepSource(std::string_view fileName) : m_nSlots{1},
-                                                            m_fileName{fileName}
+  EDM4hepSource::EDM4hepSource(std::string_view fileName,
+                               int nEvents) : m_nSlots{1},
+                                              m_fileName{fileName}
   {
     std::cout << "EDM4hepSource: Constructing the source ..." << std::endl;
 
-    m_columnNames.emplace_back("MCParticles");
+    // Check if file exists
+    if (!std::filesystem::exists(m_fileName)) {
+      std::cerr << "EDM4hepSource: Provided file does not exist!" << std::endl;
+    }
 
+    // Check if the provided file contains required metadata
+    TFile infile = TFile(m_fileName.data(), "READ");
+    auto metadata = infile.Get("podio_metadata");
+    if (!metadata) {
+      std::cerr << "EDM4hepSource: Provided file is missing podio metadata!"
+                << std::endl;
+      return;
+    }
+    infile.Close();
+
+    // Open the input file
     m_podioReader.openFile(m_fileName);
 
-    unsigned nEvents = m_podioReader.getEntries("events");
-    std::cout << "EDM4hepSource: Found " << nEvents << " events in file: \n"
-              << "               " << fileName << std::endl;
+    unsigned int nEventsFromFile = m_podioReader.getEntries("events");
+    if (nEventsFromFile > 0) {
+      std::cout << "EDM4hepSource: Found " << nEventsFromFile
+                << " events in file: \n"
+                << "               " << m_fileName << std::endl;
+    } else {
+      std::cerr << "EDM4hepSource: No events found!" << std::endl;
+      return;
+    }
 
-    m_rangesAll.emplace_back(std::pair<ULong64_t, ULong64_t>{0, nEvents/2});
-    m_rangesAll.emplace_back(std::pair<ULong64_t, ULong64_t>{nEvents/2, nEvents});
-    m_rangesAvailable.emplace_back(std::pair<ULong64_t, ULong64_t>{0, nEvents/2});
-    m_rangesAvailable.emplace_back(std::pair<ULong64_t, ULong64_t>{nEvents/2, nEvents});
+    if (nEvents < 0) {
+      m_nEvents = nEventsFromFile;
+    } else if (nEvents == 0) {
+      std::cerr << "EDM4hepSource: Requested to run over zero events!"
+                << std::endl;
+      return;
+    } else {
+      m_nEvents = nEvents;
+    }
+    if (nEventsFromFile < m_nEvents) {
+      m_nEvents = nEventsFromFile;
+    }
+
+    std::cout << "EDM4hepSource: Running over " << m_nEvents << " events."
+              << std::endl;
+
+    auto frame = podio::Frame(m_podioReader.readEntry("events", 0));
+
+    std::vector<std::string> columnNames = frame.getAvailableCollections();
+    std::cout << "EDM4hepSource: Found following collections:\n";
+    for (auto& collName: columnNames) {
+      const podio::CollectionBase* coll = frame.get(collName);
+      if (coll->isValid()) {
+        m_columnNames.emplace_back(collName);
+        m_columnTypes.emplace_back(coll->getValueTypeName());
+        std::cout << "                - " << coll << "\n";
+      }
+    }
   }
 
 
@@ -31,13 +81,25 @@ namespace e4hsource {
    */
   void
   EDM4hepSource::SetNSlots(unsigned int nSlots) {
-    std::cout << "EDM4hepSource: Setting num. of slots to: " << m_nSlots << std::endl;
-
+    std::cout << "EDM4hepSource: Setting num. of slots to: " << nSlots << std::endl;
     m_nSlots = nSlots;
 
-    const auto nColumns = 1;
+    if (m_nSlots > m_nEvents) {
+      std::cerr << "EDM4hepSource: Number of events too small!" << std::endl;
+      return;
+    }
+
+    int eventsPerSlot = m_nEvents / m_nSlots;
+    for (size_t i = 0; i < (m_nSlots - 1); ++i) {
+      m_rangesAll.emplace_back(eventsPerSlot * i, eventsPerSlot * (i + 1));
+    }
+    m_rangesAll.emplace_back(eventsPerSlot * (m_nSlots - 1), m_nEvents);
+    m_rangesAvailable = m_rangesAll;
+
     // Initialize the entire set of addresses
-    m_mcParticleAddresses.resize(nColumns, std::vector<const edm4hep::MCParticleCollection*>(m_nSlots, nullptr));
+    m_Addresses.resize(
+      m_columnNames.size(),
+      std::vector<const podio::CollectionBase*>(m_nSlots, nullptr));
   }
 
 
@@ -95,7 +157,7 @@ namespace e4hsource {
       std::cout << "EDM4hepSource: No more remaining ranges.\n";
     }
 
-    return std::move(rangesToBeProcessed);
+    return rangesToBeProcessed;
   }
 
 
@@ -116,22 +178,21 @@ namespace e4hsource {
    */
   bool
   EDM4hepSource::SetEntry(unsigned int slot, ULong64_t entry) {
-    std::cout << "EDM4hepSource: In slot: " << slot << ", setting entry: "
-              << entry << std::endl;
+    // std::cout << "EDM4hepSource: In slot: " << slot << ", setting entry: "
+    //           << entry << std::endl;
 
     m_mutex.lock();
     m_frames[slot] = podio::Frame(m_podioReader.readEntry("events", entry));
-    m_mcParticles[entry] = m_frames[slot].get("MCParticles");
-
-    m_mcParticleAddresses[0][slot] =
-        dynamic_cast<const edm4hep::MCParticleCollection*>(m_mcParticles[entry]);
-    m_mutex.unlock();
-
-    std::cout << "Address: " << m_mcParticleAddresses[0][slot] << "\n";
-    std::cout << "Coll size: " << m_mcParticleAddresses[0][slot]->size() << "\n";
-    if (m_mcParticleAddresses[0][slot]->isValid()) {
-      std::cout << "Collection valid\n";
+    for (size_t i = 0; i < m_columnNames.size(); ++i) {
+      m_Addresses[i][slot] = m_frames[slot].get(m_columnNames.at(i));
+      // std::cout << "CollName: " << m_columnNames.at(i) << "\n";
+      // std::cout << "Address: " << m_Addresses[i][slot] << "\n";
+      // std::cout << "Coll size: " << m_Addresses[i][slot]->size() << "\n";
+      // if (m_Addresses[i][slot]->isValid()) {
+      //   std::cout << "Collection valid\n";
+      // }
     }
+    m_mutex.unlock();
 
     return true;
   }
@@ -168,12 +229,15 @@ namespace e4hsource {
               << typeInfo.name() << std::endl;
 
     Record_t columnReaders(m_nSlots);
-    for (size_t slotIndex = 0; slotIndex < m_nSlots; ++slotIndex) {
-      std::cout << "               Slot index: " << slotIndex << "\n";
-      std::cout << "               Address: "
-                << &m_mcParticleAddresses[0][slotIndex]
-                << std::endl;
-      columnReaders[slotIndex] = (void*) &m_mcParticleAddresses[0][slotIndex];
+    for (size_t columnIndex = 0; columnIndex < m_columnNames.size(); ++columnIndex) {
+      for (size_t slotIndex = 0; slotIndex < m_nSlots; ++slotIndex) {
+        // std::cout << "               Column index: " << columnIndex << "\n";
+        // std::cout << "               Slot index: " << slotIndex << "\n";
+        // std::cout << "               Address: "
+        //         << &m_Addresses[columnIndex][slotIndex]
+        //         << std::endl;
+        columnReaders[slotIndex] = (void*) &m_Addresses[columnIndex][slotIndex];
+      }
     }
 
     return columnReaders;
@@ -195,9 +259,12 @@ namespace e4hsource {
    */
   bool
   EDM4hepSource::HasColumn(std::string_view columnName) const {
-    std::cout << "EDM4hepSource: Looking for column: " << columnName << std::endl;
+    std::cout << "EDM4hepSource: Looking for column: " << columnName
+              << std::endl;
 
-    if (columnName == "MCParticles") {
+    if (std::find(m_columnNames.begin(),
+                  m_columnNames.end(),
+                  columnName) != m_columnNames.end()) {
       return true;
     }
 
@@ -213,10 +280,32 @@ namespace e4hsource {
     std::cout << "EDM4hepSource: Looking for type name of column: "
               << columnName << std::endl;
 
-    if (columnName == "MCParticles") {
-      return "edm4hep::MCParticleCollection";
+    auto itr = std::find(m_columnNames.begin(), m_columnNames.end(),
+                         columnName);
+    if (itr != m_columnNames.end()) {
+      auto i = std::distance(m_columnNames.begin(), itr);
+      return m_columnTypes.at(i);
     }
 
     return "float";
+  }
+
+
+  // --------------------------------------------------------------------------
+
+  /**
+   * \brief Find all collections in the file(s) provided to the reader.
+   */
+  int
+  EDM4hepSource::findCollections() {
+    auto frame = podio::Frame(m_podioReader.readEntry("events", 0));
+
+    std::vector<std::string> collNames = frame.getAvailableCollections();
+    std::cout << "EDM4hepSource: Found following collections:\n";
+    for (auto& coll: collNames) {
+      std::cout << "                - " << coll << "\n";
+    }
+
+    return collNames.size();
   }
 }

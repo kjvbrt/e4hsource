@@ -24,7 +24,7 @@ namespace e4hsource {
 
   class EDM4hepSource final : public ROOT::RDF::RDataSource {
     public:
-      EDM4hepSource(std::string_view fileName);
+      EDM4hepSource(std::string_view fileName, int nEvents = -1);
 
       void SetNSlots(unsigned int nSlots);
 
@@ -56,20 +56,25 @@ namespace e4hsource {
       std::string AsString() { return "Edm4hep data source"; };
 
     private:
+      /// Find all collections in the input file(s)
+      int findCollections();
+
       /// Number of slots/threads
       unsigned int m_nSlots;
       /// Input filename
       std::string m_fileName;
+      /// Total number of events
+      unsigned int m_nEvents;
       /// Ranges of events available to be processed
       std::vector<std::pair<ULong64_t, ULong64_t>> m_rangesAvailable;
       /// Ranges of events available ever created
       std::vector<std::pair<ULong64_t, ULong64_t>> m_rangesAll;
       /// Column names
       std::vector<std::string> m_columnNames;
-      /// MCParticleAddresses, m_mcParticleAddresses[columnIndex][slotIndex]
-      std::vector<std::vector<const edm4hep::MCParticleCollection*>> m_mcParticleAddresses;
-      /// MCParticles, m_mcParticles[entryIndex]
-      std::map<ULong64_t, const podio::CollectionBase*> m_mcParticles;
+      /// Column types
+      std::vector<std::string> m_columnTypes;
+      /// Addresses, m_Addresses[columnIndex][slotIndex]
+      std::vector<std::vector<const podio::CollectionBase*>> m_Addresses;
 
       /// Root podio reader
       podio::ROOTFrameReader m_podioReader;
