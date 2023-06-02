@@ -53,9 +53,6 @@ namespace e4hsource {
       std::string AsString() { return "Edm4hep data source"; };
 
     private:
-      /// Find all collections in the input file(s)
-      int findCollections();
-
       /// Number of slots/threads
       unsigned int m_nSlots;
       /// Input filename
@@ -74,15 +71,10 @@ namespace e4hsource {
       std::vector<std::vector<const podio::CollectionBase*>> m_Collections;
       /// Active collections
       std::vector<unsigned int> m_activeCollections;
-
       /// Root podio reader
-      podio::ROOTFrameReader m_podioReader;
-
+      std::map<int, podio::ROOTFrameReader> m_podioReaders;
       /// Podio frames
       std::map<int, podio::Frame> m_frames;
-
-      /// Mutex
-      std::mutex m_mutex;
   };
 
 
