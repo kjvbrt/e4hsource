@@ -15,9 +15,6 @@
 #include <podio/ROOTFrameReader.h>
 #include <podio/CollectionBase.h>
 
-// EDM4hep
-#include <edm4hep/MCParticleCollection.h>
-
 
 namespace e4hsource {
   using Record_t = std::vector<void*>;
@@ -73,8 +70,10 @@ namespace e4hsource {
       std::vector<std::string> m_columnNames;
       /// Column types
       std::vector<std::string> m_columnTypes;
-      /// Addresses, m_Addresses[columnIndex][slotIndex]
-      std::vector<std::vector<const podio::CollectionBase*>> m_Addresses;
+      /// Collections, m_Collections[columnIndex][slotIndex]
+      std::vector<std::vector<const podio::CollectionBase*>> m_Collections;
+      /// Active collections
+      std::vector<unsigned int> m_activeCollections;
 
       /// Root podio reader
       podio::ROOTFrameReader m_podioReader;

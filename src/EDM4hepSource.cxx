@@ -97,7 +97,7 @@ namespace e4hsource {
     m_rangesAvailable = m_rangesAll;
 
     // Initialize the entire set of addresses
-    m_Addresses.resize(
+    m_Collections.resize(
       m_columnNames.size(),
       std::vector<const podio::CollectionBase*>(m_nSlots, nullptr));
   }
@@ -183,12 +183,12 @@ namespace e4hsource {
 
     m_mutex.lock();
     m_frames[slot] = podio::Frame(m_podioReader.readEntry("events", entry));
-    for (size_t i = 0; i < m_columnNames.size(); ++i) {
-      m_Addresses[i][slot] = m_frames[slot].get(m_columnNames.at(i));
-      // std::cout << "CollName: " << m_columnNames.at(i) << "\n";
-      // std::cout << "Address: " << m_Addresses[i][slot] << "\n";
-      // std::cout << "Coll size: " << m_Addresses[i][slot]->size() << "\n";
-      // if (m_Addresses[i][slot]->isValid()) {
+    for (auto& collectionIndex: m_activeCollections) {
+      m_Collections[collectionIndex][slot] = m_frames[slot].get(m_columnNames.at(collectionIndex));
+      // std::cout << "CollName: " << m_columnNames.at(collectionIndex) << "\n";
+      // std::cout << "Address: " << m_Collections[collectionIndex][slot] << "\n";
+      // std::cout << "Coll size: " << m_Collections[collectionIndex][slot]->size() << "\n";
+      // if (m_Collections[collectionIndex][slot]->isValid()) {
       //   std::cout << "Collection valid\n";
       // }
     }
@@ -222,22 +222,34 @@ namespace e4hsource {
    *        per slot 
    */
   Record_t
-  EDM4hepSource::GetColumnReadersImpl(std::string_view name,
+  EDM4hepSource::GetColumnReadersImpl(std::string_view columnName,
                                       const std::type_info& typeInfo) {
     std::cout << "EDM4hepSource: Getting column reader implementation for column:\n"
-              << "               " << name << "\n               with type: "
-              << typeInfo.name() << std::endl;
+              << "               " << columnName
+              << "\n               with type: " << typeInfo.name() << std::endl;
+
+    auto itr = std::find(m_columnNames.begin(), m_columnNames.end(),
+                         columnName);
+    if (itr == m_columnNames.end()) {
+      std::cerr << "EDM4hepSource: Can't find requested column" << std::endl;
+    }
+    auto columnIndex = std::distance(m_columnNames.begin(), itr);
+    m_activeCollections.emplace_back(columnIndex);
+    std::cout << "EDM4hepSource: Active collections so far:\n"
+              << "               ";
+    for (auto& i: m_activeCollections) {
+      std::cout << i << ", ";
+    }
+    std::cout << std::endl;
 
     Record_t columnReaders(m_nSlots);
-    for (size_t columnIndex = 0; columnIndex < m_columnNames.size(); ++columnIndex) {
-      for (size_t slotIndex = 0; slotIndex < m_nSlots; ++slotIndex) {
-        // std::cout << "               Column index: " << columnIndex << "\n";
-        // std::cout << "               Slot index: " << slotIndex << "\n";
-        // std::cout << "               Address: "
-        //         << &m_Addresses[columnIndex][slotIndex]
-        //         << std::endl;
-        columnReaders[slotIndex] = (void*) &m_Addresses[columnIndex][slotIndex];
-      }
+    for (size_t slotIndex = 0; slotIndex < m_nSlots; ++slotIndex) {
+      // std::cout << "               Column index: " << columnIndex << "\n";
+      // std::cout << "               Slot index: " << slotIndex << "\n";
+      // std::cout << "               Address: "
+      //         << &m_Collections[columnIndex][slotIndex]
+      //         << std::endl;
+      columnReaders[slotIndex] = (void*) &m_Collections[columnIndex][slotIndex];
     }
 
     return columnReaders;
@@ -302,8 +314,8 @@ namespace e4hsource {
 
     std::vector<std::string> collNames = frame.getAvailableCollections();
     std::cout << "EDM4hepSource: Found following collections:\n";
-    for (auto& coll: collNames) {
-      std::cout << "                - " << coll << "\n";
+    for (auto& collName: collNames) {
+      std::cout << "                - " << collName << "\n";
     }
 
     return collNames.size();
