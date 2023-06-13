@@ -14,6 +14,12 @@ target_link_libraries(e4hsource PUBLIC ROOT::RIO
                                        EDM4HEP::edm4hep
                                        EDM4HEP::edm4hepDict)
 
-add_executable(e4hsource_test ${CMAKE_SOURCE_DIR}/test/test.cxx)
-target_include_directories(e4hsource_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(e4hsource_test e4hsource)
+add_executable(test_source ${CMAKE_SOURCE_DIR}/test/test_source.cxx)
+target_include_directories(test_source PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(test_source e4hsource)
+
+add_executable(test_low_level ${CMAKE_SOURCE_DIR}/test/test_low_level.cxx)
+target_link_libraries(test_low_level ROOT::ROOTDataFrame
+                                     podio::podioRootIO
+                                     EDM4HEP::edm4hep
+                                     EDM4HEP::edm4hepDict)
