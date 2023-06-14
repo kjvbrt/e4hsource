@@ -64,15 +64,22 @@ ROOT::VecOps::RVec<float> getPx(edm4hep::MCParticleCollection& inParticles) {
 
 
 int main(int argc, char *argv[]) {
-  auto verbosity = ROOT::Experimental::RLogScopedVerbosity(ROOT::Detail::RDF::RDFLogChannel(), ROOT::Experimental::ELogLevel::kInfo);
+  // auto verbosity = ROOT::Experimental::RLogScopedVerbosity(ROOT::Detail::RDF::RDFLogChannel(), ROOT::Experimental::ELogLevel::kInfo);
+
+  int nCPU = 8;
+  if (argc > 1) {
+    nCPU = atoi(argv[1]);
+  }
 
   auto fileName = "/tmp/e4hsource/testSiD_edm4hep.root";
+  // auto fileName = "/tmp/e4hsource/testSiD_1_edm4hep.root";
+  // auto fileName = "/tmp/e4hsource/testSiD_10000_edm4hep.root";
 
-  ROOT::EnableImplicitMT(8);
+  ROOT::EnableImplicitMT(nCPU);
 
   ROOT::RDataFrame rdf(std::make_unique<e4hsource::EDM4hepSource>(fileName));
 
-  rdf.Describe().Print();
+  // rdf.Describe().Print();
   std::cout << std::endl;
 
   std::cout << "Info: Num. of slots: " <<  rdf.GetNSlots() << std::endl;
